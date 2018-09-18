@@ -1,0 +1,16 @@
+enclave {
+    from "sgx_tkey_exchange.edl" import *;
+
+    include "sgx_key_exchange.h"
+    include "sgx_trts.h"
+
+    trusted {
+        public sgx_status_t enclave_ra_init([in, size=len] sgx_ec256_public_t *p_gb, size_t len, [out] sgx_ra_context_t *p_ra_context_out);
+        public sgx_status_t enclave_process_encrypted_secret( [in, size=secret_len] char *p_encrypted_secret, size_t secret_len, [in, size=context_len] sgx_ra_context_t *p_ra_context, size_t context_len );
+        public void enclave_emit_secret( );
+    };
+    untrusted {
+        void emit_debug([string, in] const char *dbg_message);
+        void print_byte_array([in, size=len] void *mem, size_t len);
+    };
+};

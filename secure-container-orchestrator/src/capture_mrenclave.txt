@@ -1,0 +1,5 @@
+#define MRENCLAVE_SIZE 32
+
+int mr_enclave_offset = 112;
+
+ print_byte_array(( (uint8_t *) msg3.quote) + mr_enclave_offset, MRENCLAVE_SIZE);

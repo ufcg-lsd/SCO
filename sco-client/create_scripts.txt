@@ -1,0 +1,7 @@
+bash sco-client.sh -c sac -c ../samples/sac/Dockerfile -c 1 -c ../samples/sac/file.zip -c 900 -c 1 -c http://localhost:5001 -c 8888
+#NOT WORKING
+bash sco-client.sh -c kafka -c ../samples/kafka-sac/Dockerfile -c 1 -c ../samples/kafka-sac/file.zip -c 900 -c 1 -c http://localhost:5001 -c 9092
+bash sco-client.sh -c endless_aggregator -c ../samples/endless_aggregator/Dockerfile -c 1 -c ../samples/endless_aggregator/file.zip -c 900 -c 1 -c http://localhost:5001 -c 8888
+echo $(date +%s%3N) >> launch.dat && bash sco-client.sh -c endless_aggregator -c ../samples/endless_aggregator/Dockerfile -c 6 -c ../samples/endless_aggregator/file.zip -c 900 -c 1 -c http://10.5.0.15:5001 -c 8888
+bash sco-client.sh -c endless_aggregator -c ../samples/DynSGX/Dockerfile -c 2 -c ../samples/DynSGX/DynSGX.zip -c 900 -c 1 -c http://10.5.0.27:5001 -c 8888
+bash sco-client.sh -c dynsgx -c ../samples/DynSGX/Dockerfile -c 2 -c ../samples/DynSGX/DynSGX.zip -c 900 -c 1 -c http://10.5.0.27:5001 -c 8888

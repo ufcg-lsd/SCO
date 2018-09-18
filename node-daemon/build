@@ -1,0 +1,9 @@
+HTTP/1.1 100 Continue
+
+HTTP/1.0 200 OK
+Content-Type: text/html; charset=utf-8
+Content-Length: 36
+Server: Werkzeug/0.12.1 Python/2.7.6
+Date: Mon, 24 Apr 2017 18:18:06 GMT
+
+[INFO] Image ex1 built successfully.

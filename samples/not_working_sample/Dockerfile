@@ -1,0 +1,2 @@
+FROM some_invalid_repository
+RUN it_does_not_work

@@ -1,0 +1,20 @@
+enclave {
+    from "sgx_tkey_exchange.edl" import *;
+
+    include "sgx_key_exchange.h"
+    include "sgx_trts.h"
+
+    trusted {
+        public void enclave_init_mutex();
+        public sgx_status_t enclave_ra_init([in, size=len] sgx_ec256_public_t *p_gb, size_t len, [out] sgx_ra_context_t *p_ra_context_out, uint32_t smart_meter_id);
+        public void enclave_set_g_b([in, size=len] sgx_ec256_public_t *p_gb, size_t len);
+        public void enclave_retrieve_g_b([out] sgx_ec256_public_t *p_g_b);
+        public sgx_status_t enclave_verify_sign_gb_ga([in,size=len] sgx_ec256_signature_t *p_sign_gb_ga, size_t len, [in,size=len_gb_ga] uint8_t *p_gb_ga, size_t len_gb_ga, uint32_t sm_id);
+        public sgx_status_t enclave_get_sk_key([out] sgx_ra_key_128_t *p_sk_key, uint32_t sm_id);
+        public void enclave_destroy_mutex();
+        public void init_aggregator();
+	public void aggregate([in, size=len] char *payload, size_t len);
+	public long retrieve_aggregation(uint32_t smart_meter_id);
+	public uint8_t *retrieve_decrypted_debug();
+    };
+};

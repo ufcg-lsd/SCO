@@ -1,0 +1,18 @@
+enclave {
+    from "sgx_tkey_exchange.edl" import *;
+
+    include "sgx_key_exchange.h"
+    include "sgx_trts.h"
+
+    trusted {
+        public sgx_status_t enclave_set_g_a([in,size=len]sgx_ec256_public_t *p_g_a_in, size_t len);
+        public sgx_status_t enclave_get_g_a([out] sgx_ec256_public_t *p_g_a_out);
+        public sgx_status_t enclave_get_b([out] sgx_ec256_private_t *p_b_out);
+        public sgx_status_t enclave_get_g_b([out] sgx_ec256_public_t *p_g_b_out);
+        public sgx_status_t enclave_get_sign_gb_ga([out] sgx_ec256_signature_t *p_sign_gb_ga);
+        public sgx_status_t enclave_get_gb_ga([out, size=len] uint8_t *p_gb_ga_out, size_t len);
+        public sgx_status_t enclave_get_shared_secret([out] sgx_ec256_dh_shared_t *p_shared_secret_out);
+        public sgx_status_t enclave_compute_cmac([in,size=key_len] sgx_cmac_128bit_key_t *cmac_key, size_t key_len, [in,size=src_len] uint8_t *p_src, size_t src_len, [out] sgx_cmac_128bit_tag_t *p_mac);
+	public sgx_status_t encryptData([in, size=p_key_len] sgx_aes_gcm_128bit_key_t *p_key, size_t p_key_len, [in, size=data_len] uint8_t *data, size_t data_len, [out, size=buffer_len] uint8_t *buffer, size_t buffer_len);
+    };
+};

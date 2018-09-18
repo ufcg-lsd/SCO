@@ -1,0 +1,20 @@
+enclave {
+    from "sgx_tkey_exchange.edl" import *;
+
+    include "sgx_key_exchange.h"
+    include "sgx_trts.h"
+
+    trusted {
+        public sgx_status_t enclave_ra_init( [out] sgx_ec256_public_t *p_gb_out );
+        public void enclave_set_ga( [in,size=len] sgx_ec256_public_t *p_ga_in, size_t len );
+        public sgx_status_t enclave_derive_keys( );
+        public sgx_status_t enclave_get_gb( [out] sgx_ec256_public_t *p_gb_out );
+        public sgx_status_t enclave_get_sign_gb_ga( [out] sgx_ec256_signature_t *p_sign_gb_ga );
+        public sgx_status_t enclave_compute_msg2_mac( [in,size=len] uint8_t *p_src, size_t len, [out] sgx_cmac_128bit_key_t *p_mac_out );
+        public sgx_status_t enclave_encrypt( [in, size=data_len] uint8_t *data, size_t data_len, [out, size=buffer_len] uint8_t *buffer, size_t buffer_len );
+    };
+    untrusted {
+        void emit_debug([string,in] const char *str);
+        void print_byte_array([in, size=len] void *mem, size_t len);
+    };
+};

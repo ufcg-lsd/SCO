@@ -1,0 +1,273 @@
+#!flask/bin/python
+from flask import Flask
+from flask import request
+from flask import send_file
+from docker import docker
+from merge import merger
+from merge import haproxy
+from merge.ip_strings import IPStrings
+import json
+import os
+import definition
+import unicodedata
+import shutil
+import socket
+
+
+socket.gethostbyname(socket.gethostname())
+
+haproxy_dockerfile_dir = definition.ROOT_PATH + '/../../assets/support-containers/load_balancer/'
+service_dispatcher_dockerfile_dir = definition.ROOT_PATH + '/../../assets/support-containers/service_dispatcher/'
+service_dispatcher_id = "service_dispatcher"
+cluster_data_dir = definition.ROOT_PATH + '/../../data/'
+haproxy_prefix = "haproxy_"
+ip_strings = IPStrings()
+dockerfile_dir = ""
+dockefile_path = ""
+
+
+app = Flask(__name__)
+
+clusters = []
+
+@app.route('/')
+def index():
+    return "Hello, World!"
+
+#CREATE: takes a cluster id, an application package, a dockerfile, a number of instances and a memory limit per instance.
+#Builds an image based from the dockerfile and package. Creates the instance amount with the give memory limit and adds a 
+#load balancer to the resulting cluster. Publishes the load balancer ip to the user.
+# TODO: Separate this method into smaller parts (template)
+
+def _set_dockerfile_path(id):
+    dockerfile_dir = definition.ROOT_PATH + '/dockerfiles' + id
+    dockerfile_path = dockerfile_dir + '/Dockerfile'
+
+
+def _deploy_files(id, package):
+    if not os.path.exists(dockerfile_dir):
+        os.makedirs(dockerfile_dir)
+    merger.deploy_package(dockerfile_dir, package)
+    print("[LOG] package deployed")
+    merger.write_data(dockerfile_path, dockerfile_data)
+    section = merger.get_section()
+    merger.insert_section(dockerfile_path, section)
+
+
+@app.route('/create_cluster', methods=['POST'])
+def create_cluster():
+    cluster = {
+        # TODO: Existing ids should not be allowed
+        'id': request.form['id'],
+        'dockerfile': request.form['dockerfile'],
+        'instances': request.form['instances'],
+        'package' : request.files['package'],
+        'mem' : request.form['mem']
+    }
+    volume = {
+         'volume_size': request.form['volume_size']
+    }
+    id = cluster['id']
+    package = cluster['package']
+    dockerfile_data = cluster['dockerfile']
+    dockerfile_data.encode('ascii','ignore')
+    dockerfile_data = dockerfile_data.replace(r'\n', '\n')
+    mem = cluster['mem']
+    instances = int(cluster['instances'])
+    volume_size = volume['volume_size']
+    _set_dockerfile_path(id)
+    _deploy_files(package)
+    print("[LOG] section inserted")
+    _create_cluster_components()
+
+    lb_ip = _add_load_balancer(id)
+    success = True
+    cluster['package'] = package.filename
+    merger.write_cluster_data(id, json.dumps(cluster))
+    print("[LOG] load balancing online at: " + str(lb_ip))
+    quote = get_mock_up_quote(id)
+    response_bundle_path = merger.create_response_bundle(dockerfile_dir, package, quote)
+
+#    return str(lb_ip) + '\n', 201
+    return send_file(response_bundle_path)
+
+def _create_cluster_components(id, volume_size):
+    if not docker.build('-t', id, dockerfile_dir):
+        print("[ERROR] build unsuccessfull")     
+    print("[LOG] image built")
+    success = True
+    volume_created = _create_volume(id, volume_size)
+    if not volume_created:
+        print("[ERROR] volume not created")
+        return
+    print(volume_created)
+    network_created = docker.create_network('--subnet=' + ip_strings.get_current_network() + "/16", id)
+    if not network_created:
+        print("[ERROR] network not created")
+        return
+    for i in range(instances):
+        created = docker.run('--network', id, '-m', str(mem) + 'M', '-d', '-v', id + ':' +$
+        if not created:
+            success = False
+    if not success:
+        print("[ERROR] instances not created")
+        return
+    print("[LOG] instances created")
+    return success
+
+
+
+@app.route('/create_single_client_cluster', methods=['POST'])
+def create_single_client_cluster():
+    cluster = {
+    # TODO: Existing ids should not be allowed
+       'id': request.form['id'],
+       'dockerfile': request.form['dockerfile'],
+       'package' : request.files['package'],
+       'mem' : request.form['mem']
+    }
+    volume = {
+       'volume_size': request.form['volume_size']
+    }
+    id = cluster['id']
+    package = cluster['package']
+    dockerfile_data = cluster['dockerfile']
+    dockerfile_data.encode('ascii','ignore')
+    dockerfile_data = dockerfile_data.replace(r'\n', '\n')
+    mem = cluster['mem']
+    volume_size = volume['volume_size']
+    dockerfile_dir = (definition.ROOT_PATH + '/dockerfiles/' + id).encode("ascii")
+    dockerfile_path = dockerfile_dir + '/Dockerfile'
+    if not os.path.exists(dockerfile_dir):
+        os.makedirs(dockerfile_dir)
+    merger.deploy_package(dockerfile_dir, package)
+    merger.write_data(dockerfile_path, dockerfile_data)
+    section = merger.get_section()
+    merger.insert_section(dockerfile_path, section)
+    dispatcher_ip =  _create_service_dispatcher(id, cluster, volume)
+    quote = get_mock_up_quote(id)
+    response_bundle_path = merger.create_response_bundle(dockerfile_dir, package, quote)
+    return send_file(response_bundle_path)
+
+
+    
+@app.route('/create_instance_single_client_cluster/<string:id>/<string:client_id>', methods=['POST'])
+def create_instance_single_client_cluster(id, client_id):
+#   client_ip = jsonify({'ip': request.remote_addr})
+    meta_string = ""
+    with open(service_dispatcher_dockerfile_dir + id + "/meta.json") as file:
+        meta_string = file.read()
+    params = json.loads(meta_string)
+    mem = params['mem']
+    volume_size = params['volume_size']
+    volume_name = id + client_id
+    dockerfile_dir = definition.ROOT_PATH + '/dockerfiles/' + id
+    docker.build("-t", id, dockerfile_dir)
+    volume_created = _create_volume(volume_name, volume_size)
+    name = (docker.run_get_name('-m', str(mem) + 'M', '-d', '-v', volume_name + ':' + docker.default_volume_path, id)).rstrip()
+    container_ip = docker.get_ip_by_name(name)
+    return container_ip, 201
+    
+    ## TODO: build and run with the parameters written
+
+def _create_service_dispatcher(id, cluster, volume):
+    service_dispatcher_dir = service_dispatcher_dockerfile_dir + id
+    if not os.path.exists(service_dispatcher_dir):
+        os.makedirs(service_dispatcher_dir)
+    section = merger.get_section()
+    dockerfile_dir = (definition.ROOT_PATH + '/dockerfiles/' + id).encode("ascii")
+    dockerfile_path = dockerfile_dir + '/Dockerfile'
+    merger.insert_section(dockerfile_path, section)
+    print("[LOG] section inserted")
+    instance_metadata_path = service_dispatcher_dir + "/meta.json"
+    cluster['volume_size'] = volume['volume_size']
+    del cluster['package']
+    merger.write_data(instance_metadata_path, json.dumps(cluster))
+    
+    with open(instance_metadata_path, 'r') as file:
+        lines = file.readlines()
+        for i in lines:
+            print(i)
+
+ 
+
+    shutil.copy(service_dispatcher_dockerfile_dir + "Dockerfile", service_dispatcher_dir)
+    print("dispatcher: pixei aqui, sai correndo")
+    manager_address = socket.gethostbyname(socket.gethostname())
+    docker.build('-t', service_dispatcher_id, service_dispatcher_dockerfile_dir)
+    docker.run('-e', "ID=" + id, '-e', 'MANAGER=' + manager_address, '-d',  service_dispatcher_id)
+    return docker.get_ip_list_by_id(service_dispatcher_id)
+
+#ADD_INSTANCE: adds instances to an existing cluster
+@app.route('/add', methods=['POST'])
+def add_instance():
+    image_id = request.form["image_id"]
+    mem = request.form["mem"]
+    created_added = docker.run('--network=' + image_id, '-m', str(mem) + 'M', '-d', '-v', image_id + ":" + docker.default_volume_path, image_id)
+    instance_ips = docker.get_ip_list_by_id(image_id)
+    load_balancer_ip = docker.get_ip_list_by_id(haproxy_prefix + image_id)
+    load_balancer_instance = docker.get_instance_names_by_id(haproxy_prefix + image_id)[0]
+    docker.stop(load_balancer_instance)
+    docker.rm(load_balancer_instance)
+    docker.rmi(haproxy_prefix + image_id)
+    lb_ip = _add_load_balancer(image_id, ip=load_balancer_ip[0])
+    return str(True), 201
+
+#LIST_INSTANCES: shows the available instances
+@app.route('/list', methods=['GET'])
+def list_instances():
+    instances_list = docker.ps()
+    return instances_list
+
+#LIST_IMAGES: shows the available images
+@app.route('/image_list', methods=['GET'])
+def list_images():
+    images_list = docker.images()
+    return images_list
+
+#REMOVE_INSTANCE: removes the instance that has the given instance id
+@app.route('/remove_instance/<string:container_id>', methods=['DELETE'])
+def remove_instance(container_id):
+    docker.stop(container_id)
+    success = docker.rm(container_id)
+    return str(success) + '\n', 200
+
+#REMOVE_IMAGE: remove an image by ID. Forces removal of all containers with that image
+@app.route('/remove_image/<string:image_id>', methods=['DELETE'])
+def remove_image(image_id):
+    success_containers = docker.rmi(image_id)
+    success_load_balancer = docker.rmi(haproxy_prefix + image_id)
+    success_volume = docker.remove_volume(image_id)
+    success_network = docker.remove_network(image_id)
+    merger.remove_app_data(image_id)
+    success = success_containers and success_load_balancer and success_volume and success_network    
+    return str(success) + '\n', 200
+
+#PRIVATE; ADD_LOAD_BALANCER: used by CREATE to add a load balancer to a given cluster by id
+def _add_load_balancer(id, ip=None):
+    lb_image_label = haproxy_prefix + id
+    lb_dockerfile_path = haproxy_dockerfile_dir + id
+    ip_list = docker.get_ip_list_by_id(id)
+    haproxy.add_nodes(id, ip_list)
+    docker.build('-t', lb_image_label, lb_dockerfile_path)
+    if not ip:
+         created = docker.run('--network=' + id, '-d', lb_image_label)
+    else:
+         networkID = docker.get_network_name_by_id(id)
+         created = docker.run('--network=' + id, '--ip', ip, '-d', lb_image_label)
+    if created:
+        print('[INFO] Load balancer created succesfully')
+        return docker.get_ip_list_by_id(lb_image_label)
+
+#PRIVATE; CREATE_VOLUME: prepares docker.create_volume arguments and calls it
+def _create_volume(volume_name, volume_size):
+    volume_size_string = "o=size=" + str(volume_size) + "g"
+    return docker.create_volume(volume_size_string, volume_name) 
+
+## TO BE DEPRECATED: generates a mock up quote
+def get_mock_up_quote(image_id):
+    return "SOME_VALID_QUOTE" + image_id
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0') 

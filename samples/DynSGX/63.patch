@@ -1,0 +1,111 @@
+From 354f22f8a6bfe84476ba57d49080ea050f11176c Mon Sep 17 00:00:00 2001
+From: exfalso <0slemi0@gmail.com>
+Date: Fri, 13 Jan 2017 13:48:16 +0000
+Subject: [PATCH] Make heap executable
+
+Signed-off-by: Andras Slemmer <andras.slemmer@r3cev.com>
+---
+ common/inc/internal/arch.h                 | 1 +
+ psw/urts/loader.cpp                        | 3 ++-
+ sdk/sign_tool/SignTool/manage_metadata.cpp | 5 ++++-
+ sdk/sign_tool/SignTool/manage_metadata.h   | 4 +++-
+ sdk/sign_tool/SignTool/sign_tool.cpp       | 1 +
+ 5 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/common/inc/internal/arch.h b/common/inc/internal/arch.h
+index 2486e017..624276e9 100644
+--- a/common/inc/internal/arch.h
++++ b/common/inc/internal/arch.h
+@@ -165,6 +165,7 @@ typedef uint64_t si_flags_t;
+ #define SI_FLAGS_EXTERNAL           (SI_FLAG_PT_MASK | SI_FLAG_R | SI_FLAG_W | SI_FLAG_X)   /* Flags visible/usable by instructions */
+ #define SI_FLAGS_R                  (SI_FLAG_R|SI_FLAG_REG)
+ #define SI_FLAGS_RW                 (SI_FLAG_R|SI_FLAG_W|SI_FLAG_REG)
++#define SI_FLAGS_RWX                (SI_FLAG_R|SI_FLAG_W|SI_FLAG_X|SI_FLAG_REG)
+ #define SI_FLAGS_RX                 (SI_FLAG_R|SI_FLAG_X|SI_FLAG_REG)
+ #define SI_FLAGS_TCS                (SI_FLAG_TCS)
+ #define SI_FLAGS_SECS               (SI_FLAG_SECS)
+diff --git a/psw/urts/loader.cpp b/psw/urts/loader.cpp
+index f33357d9..a74877e2 100644
+--- a/psw/urts/loader.cpp
++++ b/psw/urts/loader.cpp
+@@ -758,8 +758,9 @@ int CLoader::set_context_protection(layout_t *layout_start, layout_t *layout_end
+             }
+             else
+             {
+-                prot = SI_FLAGS_RW & SI_MASK_MEM_ATTRIBUTE;
++                prot = SI_FLAGS_RWX & SI_MASK_MEM_ATTRIBUTE;
+             }
++
+             ret = mprotect(GET_PTR(void, m_start_addr, layout->entry.rva + delta), 
+                                (size_t)layout->entry.page_count << SE_PAGE_SHIFT,
+                                prot); 
+diff --git a/sdk/sign_tool/SignTool/manage_metadata.cpp b/sdk/sign_tool/SignTool/manage_metadata.cpp
+index 94c176f7..888c1624 100644
+--- a/sdk/sign_tool/SignTool/manage_metadata.cpp
++++ b/sdk/sign_tool/SignTool/manage_metadata.cpp
+@@ -172,6 +172,7 @@ bool parse_metadata_file(const char *xmlpath, xml_parameter_t *parameter, int pa
+ CMetadata::CMetadata(metadata_t *metadata, BinParser *parser)
+     : m_metadata(metadata)
+     , m_parser(parser)
++    , m_heap_executable(false)
+ {
+     memset(m_metadata, 0, sizeof(metadata_t));
+     memset(&m_create_param, 0, sizeof(m_create_param));
+@@ -235,6 +236,8 @@ bool CMetadata::modify_metadata(const xml_parameter_t *parameter)
+     m_create_param.stack_max_size = parameter[STACKMAXSIZE].value;
+     m_create_param.tcs_max_num = (uint32_t)parameter[TCSNUM].value;
+     m_create_param.tcs_policy = m_metadata->tcs_policy;
++
++    m_heap_executable = parameter[HEAPEXECUTABLE].value;
+     return true;
+ }
+ 
+@@ -325,7 +328,7 @@ bool CMetadata::build_layout_table()
+     layout.entry.id = LAYOUT_ID_HEAP;
+     layout.entry.page_count = (uint32_t)(m_create_param.heap_max_size >> SE_PAGE_SHIFT);
+     layout.entry.attributes = ADD_PAGE_ONLY;
+-    layout.entry.si_flags = SI_FLAGS_RW;
++    layout.entry.si_flags = m_heap_executable ? SI_FLAGS_RWX : SI_FLAGS_RW;
+     layouts.push_back(layout);
+ 
+     // thread context memory layout
+diff --git a/sdk/sign_tool/SignTool/manage_metadata.h b/sdk/sign_tool/SignTool/manage_metadata.h
+index dc444640..8ff17275 100644
+--- a/sdk/sign_tool/SignTool/manage_metadata.h
++++ b/sdk/sign_tool/SignTool/manage_metadata.h
+@@ -61,6 +61,7 @@ typedef enum _para_type_t
+     TCSPOLICY,
+     STACKMAXSIZE,
+     HEAPMAXSIZE,
++    HEAPEXECUTABLE,
+     MISCSELECT,
+     MISCMASK
+ } para_type_t;
+@@ -68,7 +69,7 @@ typedef enum _para_type_t
+ typedef struct _xml_parameter_t
+ {
+     const char* name;       //the element name
+-    uint64_t max_value;  
++    uint64_t max_value;
+     uint64_t min_value;
+     uint64_t value;         //parameter value. Initialized with the default value.
+     uint32_t flag;          //Show whether it has been matched
+@@ -103,5 +104,6 @@ class CMetadata: private Uncopyable
+     metadata_t *m_metadata;
+     BinParser *m_parser;
+     create_param_t m_create_param;
++    bool m_heap_executable;
+ };
+ #endif
+diff --git a/sdk/sign_tool/SignTool/sign_tool.cpp b/sdk/sign_tool/SignTool/sign_tool.cpp
+index 0219f8f6..3856074d 100644
+--- a/sdk/sign_tool/SignTool/sign_tool.cpp
++++ b/sdk/sign_tool/SignTool/sign_tool.cpp
+@@ -1111,6 +1111,7 @@ int main(int argc, char* argv[])
+                                    {"TCSPolicy",TCS_POLICY_UNBIND,TCS_POLICY_BIND,TCS_POLICY_UNBIND,0},
+                                    {"StackMaxSize",0x1FFFFFFFFF,STACK_SIZE_MIN,0x40000,0},
+                                    {"HeapMaxSize",0x1FFFFFFFFF,HEAP_SIZE_MIN,0x100000,0},
++                                   {"HeapExecutable",1,0,0,0},
+                                    {"MiscSelect", 0xFFFFFFFF, 0, DEFAULT_MISC_SELECT, 0},
+                                    {"MiscMask", 0xFFFFFFFF, 0, DEFAULT_MISC_MASK, 0}};
+ 

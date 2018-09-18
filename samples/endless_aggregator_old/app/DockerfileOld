@@ -1,0 +1,25 @@
+FROM ubuntu
+MAINTAINER gabrielf@lsd.ufcg.edu.br
+RUN apt-get update && apt-get install -y curl
+ADD ./SmartMeter /usr/src/SmartMeter
+RUN chmod 755 /usr/src/SmartMeter/start.sh
+WORKDIR /usr/src/SmartMeter
+RUN ./install_sgx_latest.sh
+RUN apt-get install -y software-properties-common
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test
+RUN apt-get update
+RUN apt-get install -y g++-5 g++-4.9 git
+RUN add-apt-repository -r ppa:ubuntu-toolchain-r/test
+RUN git clone --recursive https://git.lsd.ufcg.edu.br/restbed/restbed.git
+RUN apt-get install -y cmake
+RUN mkdir ./restbed/build
+WORKDIR /usr/src/SmartMeter/restbed/build
+RUN cmake -DBUILD_TESTS=YES -DBUILD_EXAMPLES=YES -DBUILD_SSL=YES -DBUILD_SHARED=YES -DCMAKE_CXX_COMPILER=/usr/bin/g++-4.9 ..
+RUN make install
+ENV RESTBED_MODULES_PATH=/usr/src/restbed
+ENV LD_LIBRARY_PATH=/usr/src/restbed/distribution/library
+##ADD /opt/intel/sgxsdk/lib64/libsgx_urts_sim.so /opt/intel/sgxsdk/lib64/
+#RUN cp /opt/intel/sgxsdk/lib64/libsgx_urts_sim.so /opt/intel/sgxsdk/sdk_libs/i
+WORKDIR /usr/src/SmartMeter
+CMD /bin/bash -c "source /opt/intel/sgxsdk/environment" && /bin/bash -c "./start.sh" && /bin/bash -c "while true; do sleep 10; done"
+#CMD /bin/bash -c "while true; do sleep 10; done"

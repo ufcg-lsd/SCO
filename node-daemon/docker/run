@@ -1,0 +1,9 @@
+HTTP/1.1 100 Continue
+
+HTTP/1.0 200 OK
+Content-Type: text/html; charset=utf-8
+Content-Length: 37
+Server: Werkzeug/0.12.1 Python/2.7.6
+Date: Mon, 24 Apr 2017 19:56:40 GMT
+
+[INFO] Container Created Successfully

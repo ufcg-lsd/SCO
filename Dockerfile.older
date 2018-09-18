@@ -1,0 +1,28 @@
+FROM aminueza/docker-sgx
+
+MAINTAINER Amanda Souza <amandasouza@lsd.ufcg.edu.br>
+
+RUN apt-get update && apt-get install -y software-properties-common
+RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test
+RUN apt-get update && apt-get install -y git build-essential ocaml automake python sudo autoconf libtool libcurl4-openssl-dev libprotobuf-dev libprotobuf-c0-dev protobuf-compiler curl make g++ unzip wget libssl$ software-properties-common g++-4.9 cmake nano vim
+
+WORKDIR /home/sgx/drivers
+RUN git clone https://github.com/01org/linux-sgx.git
+WORKDIR /home/sgx/drivers/linux-sgx/
+RUN git checkout f4005be591a82b1bedfbf8021cec8929a3911bb1
+WORKDIR /home/sgx/drivers
+RUN git clone https://github.com/aminueza/docker-sgx.git
+WORKDIR /home/sgx/drivers/docker-sgx
+RUN cp -r 000*.patch /home/sgx/drivers/linux-sgx/
+
+WORKDIR /home/sgx/drivers/linux-sgx/
+RUN git apply *.patch && \
+   ./download_prebuilt.sh && \
+    make && \
+    make psw_install_pkg && \
+    make sdk_install_pkg
+
+RUN mkdir -p /opt/intel && \
+    cd /opt/intel && \
+    /home/sgx/drivers/linux-sgx/linux/installer/bin/sgx_linux_x64_psw_1.*.bin && \
+    sh -c 'echo yes | /home/sgx/drivers/linux-sgx/linux/installer/bin/sgx_linux_x64_sdk_1.*.bin'
